@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PMI — Performance Console</title>
+<meta name="description" content="Network-wide agent performance for the PMI franchise system, read-only from each office's CRM.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#101014; --ink-2:#1b1b22;
+    --bg:#f4f3f1; --surface:#ffffff; --line:#e7e4df;
+    --orange:#ff6d00; --orange-press:#e25f00; --orange-soft:rgba(255,109,0,.12);
+    --text:#15151a; --muted:#6c6c75;
+    --danger:#cf3a3a; --danger-soft:rgba(207,58,58,.10);
+    --good:#1f9d6b; --good-soft:rgba(31,157,107,.10);
+    --amber:#e6a52e;
+    --r:14px; --r-sm:10px;
+    --shadow:0 1px 2px rgba(16,16,20,.04),0 6px 24px rgba(16,16,20,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:'Poppins',system-ui,sans-serif; font-size:15px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:'IBM Plex Mono',monospace; font-feature-settings:"tnum" 1; letter-spacing:-.01em}
+  .wrap{max-width:1180px; margin:0 auto; padding:0 24px}
+
+  /* ---------- top bar ---------- */
+  .top{background:var(--ink); color:#fff; position:sticky; top:0; z-index:20}
+  .top-in{display:flex; align-items:center; gap:18px; height:64px}
+  .brand{display:flex; align-items:center; gap:12px}
+  .logo{
+    font-weight:800; font-size:22px; letter-spacing:-.02em; color:var(--ink);
+    background:var(--orange); padding:4px 10px; border-radius:9px; line-height:1;
+  }
+  .brand .pname{font-weight:600; font-size:14px; color:#fff; opacity:.85}
+  .brand .pname b{font-weight:700; opacity:1}
+  .top .spacer{flex:1}
+  .live-pill{
+    display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:600;
+    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14);
+    padding:6px 11px; border-radius:999px; color:#fff;
+  }
+  .live-dot{width:8px; height:8px; border-radius:50%; background:var(--orange); box-shadow:0 0 0 0 rgba(255,109,0,.5); animation:pulse 2.4s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,109,0,.55)}70%{box-shadow:0 0 0 9px rgba(255,109,0,0)}100%{box-shadow:0 0 0 0 rgba(255,109,0,0)}}
+  .top .date{font-size:12px; opacity:.6; font-weight:500}
+
+  /* ---------- tabs ---------- */
+  .tabs{background:var(--ink-2); position:sticky; top:64px; z-index:19}
+  .tabs-in{display:flex; gap:4px}
+  .tab{
+    appearance:none; border:0; background:transparent; cursor:pointer;
+    color:rgba(255,255,255,.62); font-family:inherit; font-weight:600; font-size:14px;
+    padding:14px 18px; border-bottom:2px solid transparent;
+  }
+  .tab:hover{color:#fff}
+  .tab[aria-selected="true"]{color:#fff; border-bottom-color:var(--orange)}
+  .tab .count{font-size:11px; opacity:.55; margin-left:6px}
+
+  /* ---------- panels ---------- */
+  main{padding:32px 0 64px}
+  .panel{display:none}
+  .panel.show{display:block; animation:fade .35s ease}
+  @keyframes fade{from{opacity:0; transform:translateY(6px)}to{opacity:1; transform:none}}
+
+  .eyebrow{font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--orange); margin:0 0 6px}
+  h1.head{font-size:30px; font-weight:700; letter-spacing:-.02em; margin:0 0 6px}
+  .sub{color:var(--muted); margin:0 0 26px; max-width:62ch}
+
+  /* KPI tiles */
+  .tiles{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:28px}
+  .tile{background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:18px 18px 16px; box-shadow:var(--shadow)}
+  .tile .k{font-size:12px; color:var(--muted); font-weight:600; display:flex; align-items:center; gap:7px}
+  .tile .v{font-size:32px; font-weight:600; margin-top:8px; letter-spacing:-.02em}
+  .tile .v small{font-size:14px; color:var(--muted); font-weight:500}
+  .tile.flag{border-color:rgba(207,58,58,.35); background:linear-gradient(0deg,var(--danger-soft),var(--danger-soft)),var(--surface)}
+  .tile.flag .v{color:var(--danger)}
+  .tile.flag .k{color:var(--danger)}
+  .tag{font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; padding:3px 7px; border-radius:6px; background:#eee; color:#666}
+  .tag.sample{background:#ecebe8; color:#85827b}
+  .tag.live{background:var(--orange-soft); color:var(--orange-press)}
+
+  .section-label{display:flex; align-items:baseline; justify-content:space-between; margin:30px 0 14px}
+  .section-label h2{font-size:17px; font-weight:700; margin:0; letter-spacing:-.01em}
+  .section-label .hint{font-size:12px; color:var(--muted)}
+
+  /* ---------- network pulse grid ---------- */
+  .pulse-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:24px; box-shadow:var(--shadow)}
+  .grid60{display:grid; grid-template-columns:repeat(12,1fr); gap:9px}
+  .cell{position:relative; aspect-ratio:1/1; border-radius:9px; cursor:default; transition:transform .12s}
+  .cell:hover{transform:scale(1.12); z-index:3}
+  .cell.elite{outline:2.5px solid var(--orange); outline-offset:2px; cursor:pointer}
+  .cell.elite::after{content:""; position:absolute; inset:0; border-radius:9px; box-shadow:0 0 0 0 rgba(255,109,0,.5); animation:pulse 2.4s infinite}
+  .legend{display:flex; align-items:center; gap:18px; margin-top:20px; flex-wrap:wrap; font-size:12px; color:var(--muted)}
+  .scale{display:flex; align-items:center; gap:8px}
+  .scale .bar{width:120px; height:8px; border-radius:5px; background:linear-gradient(90deg,#cf3a3a,#e6a52e,#1f9d6b)}
+  .legend .elite-key{display:inline-flex; align-items:center; gap:7px; font-weight:600; color:var(--text)}
+  .legend .elite-key i{width:13px; height:13px; border-radius:4px; background:var(--good); outline:2px solid var(--orange); outline-offset:1px}
+
+  /* tooltip */
+  .tip{position:fixed; pointer-events:none; background:var(--ink); color:#fff; font-size:12px; padding:8px 10px; border-radius:8px; opacity:0; transform:translateY(4px); transition:opacity .12s; z-index:50; box-shadow:0 8px 24px rgba(0,0,0,.25); white-space:nowrap}
+  .tip b{font-weight:600}
+  .tip .pct{color:var(--orange); font-weight:600}
+
+  /* ---------- table ---------- */
+  .table-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--r); overflow:hidden; box-shadow:var(--shadow)}
+  table{width:100%; border-collapse:collapse}
+  thead th{
+    text-align:left; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--muted); padding:13px 16px; border-bottom:1px solid var(--line); cursor:pointer; user-select:none; white-space:nowrap;
+  }
+  thead th.num{text-align:right}
+  thead th:hover{color:var(--text)}
+  thead th .arrow{opacity:.4; font-size:10px; margin-left:3px}
+  tbody td{padding:13px 16px; border-bottom:1px solid var(--line); font-size:14px}
+  tbody td.num{text-align:right}
+  tbody tr:last-child td{border-bottom:0}
+  tbody tr.elite-row{background:var(--orange-soft); cursor:pointer}
+  tbody tr.elite-row:hover{background:rgba(255,109,0,.18)}
+  tbody tr:not(.elite-row):hover{background:#faf9f7}
+  .office-name{font-weight:600; display:flex; align-items:center; gap:9px}
+  .bar-cell{display:flex; align-items:center; gap:10px; justify-content:flex-end}
+  .minibar{width:90px; height:7px; background:#eceae6; border-radius:5px; overflow:hidden}
+  .minibar i{display:block; height:100%; border-radius:5px}
+  .status{font-size:11px; font-weight:600; padding:4px 9px; border-radius:999px; white-space:nowrap}
+  .status.s-good{background:var(--good-soft); color:var(--good)}
+  .status.s-watch{background:rgba(230,165,46,.14); color:#a9760f}
+  .status.s-risk{background:var(--danger-soft); color:var(--danger)}
+
+  /* ---------- office detail ---------- */
+  .detail-head{display:flex; align-items:flex-start; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:6px}
+  .pipeline-card,.callout-card,.comms-card,.agents-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--r); box-shadow:var(--shadow)}
+  .pipeline-card{padding:22px 24px}
+  .stage-row{display:grid; grid-template-columns:130px 1fr 44px; align-items:center; gap:14px; padding:7px 0}
+  .stage-row .lbl{font-size:13px; font-weight:500}
+  .stage-row .track{height:14px; background:#f0eee9; border-radius:7px; overflow:hidden}
+  .stage-row .track i{display:block; height:100%; border-radius:7px}
+  .stage-row .n{text-align:right; font-weight:600; font-size:14px}
+  .pipeline-key{display:flex; gap:18px; flex-wrap:wrap; margin-top:14px; font-size:11px; color:var(--muted)}
+
+  .two-col{display:grid; grid-template-columns:1.3fr 1fr; gap:18px; margin:18px 0}
+  .callout-card{padding:22px 24px; display:flex; flex-direction:column; gap:16px}
+  .callout{display:flex; gap:13px; align-items:flex-start}
+  .callout .ic{flex:none; width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:17px}
+  .callout.risk .ic{background:var(--danger-soft)}
+  .callout.win .ic{background:var(--good-soft)}
+  .callout .ct{font-size:13.5px; line-height:1.45}
+  .callout .ct b{font-weight:700}
+  .callout.risk .ct b{color:var(--danger)}
+  .callout.win .ct b{color:var(--good)}
+
+  .comms-card{padding:22px 24px}
+  .comms-card h3{margin:0 0 4px; font-size:15px; font-weight:700}
+  .comms-note{font-size:12px; color:var(--muted); margin:0 0 16px}
+  .comms-row{display:flex; gap:10px}
+  .comms-stat{flex:1; text-align:center; padding:14px 8px; border-radius:var(--r-sm); background:#faf9f7; border:1px solid var(--line)}
+  .comms-stat .cn{font-size:26px; font-weight:600; letter-spacing:-.02em}
+  .comms-stat .cl{font-size:11px; color:var(--muted); font-weight:600; margin-top:2px}
+  .comms-stat.dim{opacity:.5}
+  .comms-stat.dim .cn{color:var(--muted)}
+
+  .agents-card{overflow:hidden; margin-top:4px}
+  .agents-card .ah{padding:18px 24px 0}
+  .agents-card .ah h3{margin:0; font-size:15px; font-weight:700}
+  .agents-card table{margin-top:12px}
+  .agent-name{font-weight:600}
+  .agent-role{font-size:12px; color:var(--muted); font-weight:500}
+  .pct-pill{font-weight:600; font-family:'IBM Plex Mono',monospace; font-size:13px}
+
+  /* ---------- footer note ---------- */
+  .note{margin-top:28px; padding:16px 18px; background:#efece7; border:1px solid var(--line); border-radius:var(--r); font-size:12.5px; color:#6f6c64; line-height:1.55}
+  .note b{color:#54514a; font-weight:600}
+  footer{background:var(--ink); color:rgba(255,255,255,.5); font-size:12px; padding:22px 0}
+  footer .wrap{display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap}
+  footer b{color:#fff; font-weight:600}
+
+  @media(max-width:900px){
+    .tiles{grid-template-columns:repeat(2,1fr)}
+    .two-col{grid-template-columns:1fr}
+    .grid60{grid-template-columns:repeat(8,1fr)}
+  }
+  @media(max-width:560px){
+    .wrap{padding:0 16px}
+    .top .pname{display:none}
+    .grid60{grid-template-columns:repeat(6,1fr)}
+    .stage-row{grid-template-columns:96px 1fr 36px}
+    .hide-sm{display:none}
+  }
+  @media(prefers-reduced-motion:reduce){*{animation:none !important; transition:none !important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap top-in">
+    <div class="brand">
+      <span class="logo">PMI</span>
+      <span class="pname"><b>Performance</b> Console</span>
+    </div>
+    <span class="spacer"></span>
+    <span class="live-pill"><span class="live-dot"></span>1 office live</span>
+    <span class="date mono">Jun 25, 2026</span>
+  </div>
+</header>
+
+<nav class="tabs">
+  <div class="wrap tabs-in" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-tab="network">Network<span class="count">60 offices</span></button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="offices">Offices<span class="count">leaderboard</span></button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="elite">PMI Elite<span class="count">live</span></button>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <!-- ============ NETWORK ============ -->
+  <section class="panel show" id="panel-network" role="tabpanel">
+    <p class="eyebrow">Network overview</p>
+    <h1 class="head">Every office, one pulse.</h1>
+    <p class="sub">A read-only view of agent performance across the PMI franchise network. One office &mdash; <b>PMI Elite</b> &mdash; is connected and live; the rest show how the full rollout looks once each office authorizes.</p>
+
+    <div class="tiles">
+      <div class="tile">
+        <div class="k">Offices connected</div>
+        <div class="v">1 <small>/ 60</small></div>
+      </div>
+      <div class="tile">
+        <div class="k">Agents in view <span class="tag sample">sample</span></div>
+        <div class="v mono">312</div>
+      </div>
+      <div class="tile">
+        <div class="k">Leads tracked <span class="tag sample">sample</span></div>
+        <div class="v mono">6,480</div>
+      </div>
+      <div class="tile flag">
+        <div class="k">Untouched new <span class="tag sample">sample</span></div>
+        <div class="v mono">1,140</div>
+      </div>
+    </div>
+
+    <div class="section-label">
+      <h2>Network pulse</h2>
+      <span class="hint">Each square is an office, shaded by share of leads actively worked. Hover for detail.</span>
+    </div>
+    <div class="pulse-card">
+      <div class="grid60" id="grid60"></div>
+      <div class="legend">
+        <div class="scale"><span>Lower</span><span class="bar"></span><span>Higher worked&nbsp;%</span></div>
+        <span class="elite-key"><i></i> PMI Elite &mdash; live data</span>
+      </div>
+    </div>
+
+    <div class="note">
+      <b>How to read this:</b> PMI Elite reflects live, read-only data pulled from a connected Lofty account on Jun 25, 2026. The other 59 offices are representative sample data shown to illustrate the full-network view &mdash; real figures populate as each office connects. RealOS only ever reads from a CRM; it never writes.
+    </div>
+  </section>
+
+  <!-- ============ OFFICES ============ -->
+  <section class="panel" id="panel-offices" role="tabpanel">
+    <p class="eyebrow">Franchise leaderboard</p>
+    <h1 class="head">Offices, ranked.</h1>
+    <p class="sub">Sort by any column to find who's pulling ahead and who needs a hand. Click the live office to open its detail.</p>
+
+    <div class="table-card">
+      <table id="officeTable">
+        <thead>
+          <tr>
+            <th data-sort="name">Office</th>
+            <th data-sort="agents" class="num hide-sm">Agents</th>
+            <th data-sort="leads" class="num">Leads</th>
+            <th data-sort="untouched" class="num">Untouched&nbsp;new</th>
+            <th data-sort="worked" class="num">Worked&nbsp;%</th>
+            <th data-sort="status">Status</th>
+          </tr>
+        </thead>
+        <tbody id="officeBody"></tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <b>PMI Elite</b> rows carry live numbers; all others are representative sample data. &ldquo;Untouched new&rdquo; counts leads sitting in the New stage that no one has actioned &mdash; the single clearest sign of leads going cold.
+    </div>
+  </section>
+
+  <!-- ============ PMI ELITE DETAIL ============ -->
+  <section class="panel" id="panel-elite" role="tabpanel">
+    <div class="detail-head">
+      <div>
+        <p class="eyebrow">Office detail &mdash; live</p>
+        <h1 class="head">PMI Elite <span class="tag live" style="vertical-align:middle">live data</span></h1>
+        <p class="sub" style="margin-bottom:0">Santa Clarita Valley, CA &middot; 4 members &middot; last network activity <b>today</b>.</p>
+      </div>
+    </div>
+
+    <div class="tiles" style="margin-top:22px">
+      <div class="tile">
+        <div class="k">Total leads</div>
+        <div class="v mono">109</div>
+      </div>
+      <div class="tile">
+        <div class="k">Active pipeline</div>
+        <div class="v mono">63 <small>working</small></div>
+      </div>
+      <div class="tile flag">
+        <div class="k">Untouched new</div>
+        <div class="v mono">24</div>
+      </div>
+      <div class="tile">
+        <div class="k">Worked</div>
+        <div class="v mono">78<small>%</small></div>
+      </div>
+    </div>
+
+    <div class="section-label"><h2>Pipeline distribution</h2><span class="hint">All 109 leads by stage</span></div>
+    <div class="pipeline-card" id="pipelineCard"></div>
+
+    <div class="two-col">
+      <div class="callout-card">
+        <div class="callout risk">
+          <div class="ic">&#9888;</div>
+          <div class="ct"><b>Diego Perez</b> is sitting on <b>23 new leads that have never been touched</b> &mdash; 96% of his book. These are the leads most likely to go cold without a nudge.</div>
+        </div>
+        <div class="callout win">
+          <div class="ic">&#10003;</div>
+          <div class="ct"><b>Rene Enriquez</b> has worked his entire <b>83-lead pipeline down to zero untouched</b> &mdash; the discipline pattern you'd want every office to copy.</div>
+        </div>
+      </div>
+      <div class="comms-card">
+        <h3>Activity &mdash; last 24h</h3>
+        <p class="comms-note">Shown where logged. This office doesn't log calls, so calls aren't used to rank anyone.</p>
+        <div class="comms-row">
+          <div class="comms-stat dim"><div class="cn mono">0</div><div class="cl">Calls</div></div>
+          <div class="comms-stat"><div class="cn mono">8</div><div class="cl">Texts</div></div>
+          <div class="comms-stat"><div class="cn mono">71</div><div class="cl">Email events</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="agents-card">
+      <div class="ah"><h3>Agents</h3></div>
+      <table id="agentTable">
+        <thead>
+          <tr>
+            <th data-sort="name">Agent</th>
+            <th data-sort="leads" class="num">Leads</th>
+            <th data-sort="untouched" class="num">Untouched&nbsp;new</th>
+            <th data-sort="worked" class="num">Worked&nbsp;%</th>
+            <th data-sort="active" class="num hide-sm">Last active</th>
+          </tr>
+        </thead>
+        <tbody id="agentBody"></tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      Every figure on this page is live, read-only data from PMI Elite's connected Lofty account (Jun 25, 2026). &ldquo;Worked&rdquo; = the share of a person's leads that have moved past the untouched New stage. Email events include sends, opens and replies, so they read higher than texts &mdash; we surface activity, never rank on it.
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>PMI Performance Console &mdash; proof of concept</span>
+    <span>Built by <b>RealOS</b> &middot; read-only &middot; never writes to your CRM</span>
+  </div>
+</footer>
+
+<div class="tip" id="tip"></div>
+
+<script>
+(function(){
+  // ---------- REAL DATA: PMI Elite ----------
+  var elite = {
+    name:"PMI Elite", region:"Santa Clarita Valley, CA",
+    agents:4, leads:109, untouched:24, worked:78, live:true,
+    pipeline:[
+      {s:"New Leads", n:24, c:"#cf3a3a"},
+      {s:"Attempting Contact", n:20, c:"#e6a52e"},
+      {s:"Hot", n:4, c:"#ff6d00"},
+      {s:"Warm", n:7, c:"#f0892f"},
+      {s:"Cold", n:24, c:"#8a8f98"},
+      {s:"Nurture", n:8, c:"#4a8fd6"},
+      {s:"Closed", n:22, c:"#1f9d6b"}
+    ],
+    roster:[
+      {name:"Rene Enriquez", role:"Broker Associate", leads:83, untouched:0, worked:100, active:"Today"},
+      {name:"Diego Perez", role:"Agent", leads:24, untouched:23, worked:4, active:"3 days ago"},
+      {name:"Rosie Torres", role:"Agent", leads:1, untouched:0, worked:100, active:"\u2014"},
+      {name:"Brittany Sanders", role:"Transaction Coordinator", leads:1, untouched:1, worked:0, active:"\u2014"}
+    ]
+  };
+
+  // ---------- representative offices (clearly sample) ----------
+  var cities=["Ventura","Pasadena","Glendale","Long Beach","Burbank","Torrance","Anaheim","Irvine","Riverside","Oxnard",
+    "Thousand Oaks","Simi Valley","Camarillo","Bakersfield","Lancaster","Palmdale","Santa Monica","Culver City","Pomona","Fullerton",
+    "Orange","Tustin","Brea","Whittier","Downey","Norwalk","Cerritos","Carson","Inglewood","El Segundo",
+    "Manhattan Beach","Redondo Beach","Hawthorne","Gardena","Lakewood","Bellflower","Pico Rivera","Montebello","Alhambra","Monterey Park",
+    "Arcadia","Monrovia","Covina","Azusa","Glendora","Claremont","Upland","Ontario","Chino","Corona",
+    "Temecula","Murrieta","Fontana","Rancho Cucamonga","Victorville","Hesperia","Moreno Valley","Hemet","Escondido","Carlsbad"];
+  function seeded(i){var x=Math.sin(i*99.13)*10000; return x-Math.floor(x);}
+  var offices=[elite];
+  for(var i=0;i<cities.length;i++){
+    var r1=seeded(i+1), r2=seeded(i+50), r3=seeded(i+120);
+    var agents=2+Math.floor(r1*9);
+    var leads=40+Math.floor(r2*260);
+    var worked=Math.round(38+r3*58);
+    var untouched=Math.round(leads*(1-worked/100)*(0.25+seeded(i+200)*0.5));
+    offices.push({name:"PMI "+cities[i], region:cities[i]+", CA", agents:agents, leads:leads, untouched:untouched, worked:worked, live:false});
+  }
+
+  // ---------- color scale for worked % ----------
+  function lerp(a,b,t){return Math.round(a+(b-a)*t);}
+  function workedColor(p){
+    var t=Math.max(0,Math.min(1,(p-35)/55));
+    var r,g,b;
+    if(t<0.5){var u=t/0.5; r=lerp(207,230,u); g=lerp(58,165,u); b=lerp(58,46,u);}
+    else{var u2=(t-0.5)/0.5; r=lerp(230,31,u2); g=lerp(165,157,u2); b=lerp(46,107,u2);}
+    return "rgb("+r+","+g+","+b+")";
+  }
+
+  // ---------- network grid ----------
+  var grid=document.getElementById('grid60'), tip=document.getElementById('tip');
+  offices.forEach(function(o){
+    var c=document.createElement('div');
+    c.className='cell'+(o.live?' elite':'');
+    c.style.background=workedColor(o.worked);
+    c.addEventListener('mousemove',function(e){
+      tip.innerHTML='<b>'+o.name+'</b>'+(o.live?' &middot; live':'')+'<br>Worked <span class="pct">'+o.worked+'%</span> &middot; '+o.leads+' leads';
+      tip.style.left=Math.min(e.clientX+14,window.innerWidth-180)+'px';
+      tip.style.top=(e.clientY+14)+'px'; tip.style.opacity='1';
+    });
+    c.addEventListener('mouseleave',function(){tip.style.opacity='0';});
+    if(o.live) c.addEventListener('click',function(){selectTab('elite');});
+    grid.appendChild(c);
+  });
+
+  // ---------- office leaderboard ----------
+  var body=document.getElementById('officeBody');
+  var sortKey='worked', sortDir=-1;
+  function statusFor(o){
+    if(o.untouched>=20||o.worked<45) return ['s-risk','Needs attention'];
+    if(o.worked<65) return ['s-watch','Watch'];
+    return ['s-good','Healthy'];
+  }
+  function renderOffices(){
+    var rows=offices.slice().sort(function(a,b){
+      var va=a[sortKey], vb=b[sortKey];
+      if(typeof va==='string'){return va.localeCompare(vb)*sortDir;}
+      return (va-vb)*sortDir;
+    });
+    body.innerHTML='';
+    rows.forEach(function(o){
+      var st=statusFor(o);
+      var tr=document.createElement('tr');
+      if(o.live) tr.className='elite-row';
+      tr.innerHTML=
+        '<td><span class="office-name">'+o.name+(o.live?' <span class="tag live">live</span>':' <span class="tag sample">sample</span>')+'</span></td>'+
+        '<td class="num mono hide-sm">'+o.agents+'</td>'+
+        '<td class="num mono">'+o.leads+'</td>'+
+        '<td class="num mono"'+(o.untouched>=20?' style="color:var(--danger);font-weight:600"':'')+'>'+o.untouched+'</td>'+
+        '<td class="num"><span class="bar-cell"><span class="minibar"><i style="width:'+o.worked+'%;background:'+workedColor(o.worked)+'"></i></span><span class="mono">'+o.worked+'%</span></span></td>'+
+        '<td><span class="status '+st[0]+'">'+st[1]+'</span></td>';
+      if(o.live) tr.addEventListener('click',function(){selectTab('elite');});
+      body.appendChild(tr);
+    });
+  }
+  document.querySelectorAll('#officeTable thead th').forEach(function(th){
+    th.addEventListener('click',function(){
+      var k=th.getAttribute('data-sort');
+      if(k===sortKey) sortDir*=-1; else {sortKey=k; sortDir=(k==='name')?1:-1;}
+      renderOffices();
+    });
+  });
+  renderOffices();
+
+  // ---------- pipeline distribution ----------
+  var pc=document.getElementById('pipelineCard');
+  var maxN=Math.max.apply(null,elite.pipeline.map(function(p){return p.n;}));
+  elite.pipeline.forEach(function(p){
+    var row=document.createElement('div'); row.className='stage-row';
+    row.innerHTML='<span class="lbl">'+p.s+'</span>'+
+      '<span class="track"><i style="width:'+Math.round(p.n/maxN*100)+'%;background:'+p.c+'"></i></span>'+
+      '<span class="n mono">'+p.n+'</span>';
+    pc.appendChild(row);
+  });
+  var key=document.createElement('div'); key.className='pipeline-key';
+  key.innerHTML='<span style="color:var(--danger)">&#9632; New / untouched</span> <span style="color:var(--amber)">&#9632; Working</span> <span style="color:var(--good)">&#9632; Closed</span>';
+  pc.appendChild(key);
+
+  // ---------- agent table ----------
+  var ab=document.getElementById('agentBody');
+  var aKey='untouched', aDir=-1;
+  function renderAgents(){
+    var rows=elite.roster.slice().sort(function(a,b){
+      var va=a[aKey], vb=b[aKey];
+      if(typeof va==='string'){return va.localeCompare(vb)*aDir;}
+      return (va-vb)*aDir;
+    });
+    ab.innerHTML='';
+    rows.forEach(function(a){
+      var pcol=workedColor(a.worked);
+      ab.innerHTML+=
+        '<td><div class="agent-name">'+a.name+'</div><div class="agent-role">'+a.role+'</div></td>'+
+        '<td class="num mono">'+a.leads+'</td>'+
+        '<td class="num mono"'+(a.untouched>=10?' style="color:var(--danger);font-weight:700"':'')+'>'+a.untouched+'</td>'+
+        '<td class="num"><span class="pct-pill" style="color:'+pcol+'">'+a.worked+'%</span></td>'+
+        '<td class="num hide-sm" style="color:var(--muted)">'+a.active+'</td>';
+      // wrap each agent's cells in a row
+    });
+    // rebuild as proper rows
+    ab.innerHTML='';
+    rows.forEach(function(a){
+      var pcol=workedColor(a.worked);
+      var tr=document.createElement('tr');
+      tr.innerHTML=
+        '<td><div class="agent-name">'+a.name+'</div><div class="agent-role">'+a.role+'</div></td>'+
+        '<td class="num mono">'+a.leads+'</td>'+
+        '<td class="num mono"'+(a.untouched>=10?' style="color:var(--danger);font-weight:700"':'')+'>'+a.untouched+'</td>'+
+        '<td class="num"><span class="pct-pill" style="color:'+pcol+'">'+a.worked+'%</span></td>'+
+        '<td class="num hide-sm" style="color:var(--muted)">'+a.active+'</td>';
+      ab.appendChild(tr);
+    });
+  }
+  document.querySelectorAll('#agentTable thead th').forEach(function(th){
+    th.addEventListener('click',function(){
+      var k=th.getAttribute('data-sort');
+      if(k===aKey) aDir*=-1; else {aKey=k; aDir=(k==='name')?1:-1;}
+      renderAgents();
+    });
+  });
+  renderAgents();
+
+  // ---------- tabs ----------
+  function selectTab(name){
+    document.querySelectorAll('.tab').forEach(function(t){t.setAttribute('aria-selected', t.getAttribute('data-tab')===name);});
+    document.querySelectorAll('.panel').forEach(function(p){p.classList.toggle('show', p.id==='panel-'+name);});
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+  document.querySelectorAll('.tab').forEach(function(t){
+    t.addEventListener('click',function(){selectTab(t.getAttribute('data-tab'));});
+  });
+})();
+</script>
+</body>
+</html>
